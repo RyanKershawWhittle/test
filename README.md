@@ -1,4 +1,4 @@
-App 2
-=====
+Test
+====
 
-Sample Splunk app named app2 for CI/CD testing.
+Splunk app `test` — promotion target receiving changes from `dev` for integration testing.

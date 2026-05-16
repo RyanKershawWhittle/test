@@ -1,0 +1,31 @@
+<dashboard version="1.1">
+  <label>Test Overview</label>
+  <description>Sample overview dashboard for the test Splunk app.</description>
+  <row>
+    <panel>
+      <title>Hello from test</title>
+      <single>
+        <search>
+          <query>| makeresults | eval app="test" | stats count by app</query>
+          <earliest>-15m</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="colorBy">value</option>
+        <option name="underLabel">events in window</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Internal events (last 15m)</title>
+      <chart>
+        <search>
+          <query>index=_internal | timechart span=1m count</query>
+          <earliest>-15m</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.drilldown">none</option>
+      </chart>
+    </panel>
+  </row>
+</dashboard>
