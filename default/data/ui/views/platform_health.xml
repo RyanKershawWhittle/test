@@ -242,6 +242,71 @@
   </row>
 
   <!-- ============================================================
+       ROW SH-CPU/MEM: SEARCH HEAD RESOURCE USAGE
+  ============================================================ -->
+  <row>
+    <panel>
+      <title>Search Head — CPU &amp; Memory p90 per Host (24h)</title>
+      <table>
+        <search>
+          <query>
+            index=_introspection sourcetype=splunk_resource_usage component=splunkd
+            [| rest /services/search/distributed/peers | fields title | rename title AS host]
+            | stats perc90(data.cpu_user_pct) AS cpu_p90 perc90(data.pct_memory) AS mem_p90 BY host
+            | eval cpu_p90 = round(cpu_p90, 1)
+            | eval mem_p90 = round(mem_p90, 1)
+            | eval cpu_rag = case(cpu_p90 &lt; 60, "GREEN", cpu_p90 &lt; 80, "AMBER", true(), "RED")
+            | eval mem_rag = case(mem_p90 &lt; 60, "GREEN", mem_p90 &lt; 80, "AMBER", true(), "RED")
+            | sort -cpu_p90
+            | rename host AS Host, cpu_p90 AS "CPU p90 (%)", mem_p90 AS "Mem p90 (%)", cpu_rag AS "CPU RAG", mem_rag AS "Mem RAG"
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="count">10</option>
+        <option name="dataOverlayMode">highlow</option>
+      </table>
+    </panel>
+
+    <panel>
+      <title>Search Head — CPU p90 Over Time (%)</title>
+      <chart>
+        <search>
+          <query>
+            index=_introspection sourcetype=splunk_resource_usage component=splunkd
+            [| rest /services/search/distributed/peers | fields title | rename title AS host]
+            | timechart span=1h perc90(data.cpu_user_pct) BY host
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.nullValueMode">connect</option>
+        <option name="charting.axisTitleY.text">CPU %</option>
+      </chart>
+    </panel>
+
+    <panel>
+      <title>Search Head — Memory p90 Over Time (%)</title>
+      <chart>
+        <search>
+          <query>
+            index=_introspection sourcetype=splunk_resource_usage component=splunkd
+            [| rest /services/search/distributed/peers | fields title | rename title AS host]
+            | timechart span=1h perc90(data.pct_memory) BY host
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.nullValueMode">connect</option>
+        <option name="charting.axisTitleY.text">Mem %</option>
+        <option name="charting.seriesColors">["0xF8BE34","0xDC4E41","0x53A051"]</option>
+      </chart>
+    </panel>
+  </row>
+
+  <!-- ============================================================
        ROW 3: INDEXER HEALTH
   ============================================================ -->
   <row>
@@ -333,6 +398,71 @@
         </search>
         <option name="count">10</option>
       </table>
+    </panel>
+  </row>
+
+  <!-- ============================================================
+       ROW IDX-CPU/MEM: INDEXER RESOURCE USAGE
+  ============================================================ -->
+  <row>
+    <panel>
+      <title>Indexers — CPU &amp; Memory p90 per Host (24h)</title>
+      <table>
+        <search>
+          <query>
+            index=_introspection sourcetype=splunk_resource_usage component=splunkd
+            [| rest /services/search/distributed/peers splunk_server=* | fields host | dedup host]
+            | stats perc90(data.cpu_user_pct) AS cpu_p90 perc90(data.pct_memory) AS mem_p90 BY host
+            | eval cpu_p90 = round(cpu_p90, 1)
+            | eval mem_p90 = round(mem_p90, 1)
+            | eval cpu_rag = case(cpu_p90 &lt; 60, "GREEN", cpu_p90 &lt; 80, "AMBER", true(), "RED")
+            | eval mem_rag = case(mem_p90 &lt; 60, "GREEN", mem_p90 &lt; 80, "AMBER", true(), "RED")
+            | sort -cpu_p90
+            | rename host AS Host, cpu_p90 AS "CPU p90 (%)", mem_p90 AS "Mem p90 (%)", cpu_rag AS "CPU RAG", mem_rag AS "Mem RAG"
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="count">10</option>
+        <option name="dataOverlayMode">highlow</option>
+      </table>
+    </panel>
+
+    <panel>
+      <title>Indexers — CPU p90 Over Time (%)</title>
+      <chart>
+        <search>
+          <query>
+            index=_introspection sourcetype=splunk_resource_usage component=splunkd
+            [| rest /services/search/distributed/peers splunk_server=* | fields host | dedup host]
+            | timechart span=1h perc90(data.cpu_user_pct) BY host
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.nullValueMode">connect</option>
+        <option name="charting.axisTitleY.text">CPU %</option>
+      </chart>
+    </panel>
+
+    <panel>
+      <title>Indexers — Memory p90 Over Time (%)</title>
+      <chart>
+        <search>
+          <query>
+            index=_introspection sourcetype=splunk_resource_usage component=splunkd
+            [| rest /services/search/distributed/peers splunk_server=* | fields host | dedup host]
+            | timechart span=1h perc90(data.pct_memory) BY host
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.nullValueMode">connect</option>
+        <option name="charting.axisTitleY.text">Mem %</option>
+        <option name="charting.seriesColors">["0xF8BE34","0xDC4E41","0x53A051","0x5379AF"]</option>
+      </chart>
     </panel>
   </row>
 
@@ -451,6 +581,72 @@
         </search>
         <option name="count">10</option>
       </table>
+    </panel>
+  </row>
+
+  <!-- ============================================================
+       ROW HF-CPU/MEM: HEAVY FORWARDER / iFW RESOURCE USAGE
+       Requires forwarders to ship _introspection data.
+       Enable via: [introspection:generator:resource_usage] in server.conf
+  ============================================================ -->
+  <row>
+    <panel>
+      <title>HF / iFW — CPU &amp; Memory p90 per Host (24h)</title>
+      <table>
+        <search>
+          <query>
+            index=_introspection sourcetype=splunk_resource_usage component=splunkd
+            NOT [| rest /services/search/distributed/peers | fields title | rename title AS host]
+            | stats perc90(data.cpu_user_pct) AS cpu_p90 perc90(data.pct_memory) AS mem_p90 BY host
+            | eval cpu_p90 = round(cpu_p90, 1)
+            | eval mem_p90 = round(mem_p90, 1)
+            | eval cpu_rag = case(cpu_p90 &lt; 70, "GREEN", cpu_p90 &lt; 85, "AMBER", true(), "RED")
+            | eval mem_rag = case(mem_p90 &lt; 70, "GREEN", mem_p90 &lt; 85, "AMBER", true(), "RED")
+            | sort -cpu_p90
+            | rename host AS Host, cpu_p90 AS "CPU p90 (%)", mem_p90 AS "Mem p90 (%)", cpu_rag AS "CPU RAG", mem_rag AS "Mem RAG"
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="count">15</option>
+        <option name="dataOverlayMode">highlow</option>
+      </table>
+    </panel>
+
+    <panel>
+      <title>HF / iFW — CPU p90 Over Time (%)</title>
+      <chart>
+        <search>
+          <query>
+            index=_introspection sourcetype=splunk_resource_usage component=splunkd
+            NOT [| rest /services/search/distributed/peers | fields title | rename title AS host]
+            | timechart span=1h perc90(data.cpu_user_pct) BY host
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.nullValueMode">connect</option>
+        <option name="charting.axisTitleY.text">CPU %</option>
+      </chart>
+    </panel>
+
+    <panel>
+      <title>HF / iFW — Memory p90 Over Time (%)</title>
+      <chart>
+        <search>
+          <query>
+            index=_introspection sourcetype=splunk_resource_usage component=splunkd
+            NOT [| rest /services/search/distributed/peers | fields title | rename title AS host]
+            | timechart span=1h perc90(data.pct_memory) BY host
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.nullValueMode">connect</option>
+        <option name="charting.axisTitleY.text">Mem %</option>
+      </chart>
     </panel>
   </row>
 
