@@ -1,0 +1,457 @@
+<dashboard version="1.1" theme="dark">
+  <label>Splunk Platform Daily Health</label>
+  <description>Morning operational health check — Search Heads | Indexers | Heavy Forwarders | DBConnect | iFWs</description>
+
+  <!-- ============================================================
+       ROW 1: RAG SUMMARY CARDS
+       One card per tier. Value = issue count. Color = RAG state.
+       GREEN <5 | AMBER 5-20 | RED >20 (errors/skipped/offline)
+  ============================================================ -->
+  <row>
+
+    <panel>
+      <title>Search Heads</title>
+      <single>
+        <search>
+          <query>
+            index=_internal sourcetype=splunkd log_level IN (ERROR, CRITICAL)
+            [| rest /services/search/distributed/peers | fields title | rename title AS host]
+            | stats count AS issues
+            | eval status = case(issues &lt; 5, "GREEN", issues &lt; 20, "AMBER", true(), "RED")
+            | fields status, issues
+          </query>
+          <earliest>-1h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="field">issues</option>
+        <option name="underLabel">SH Errors (1h)</option>
+        <option name="colorMode">block</option>
+        <option name="rangeColors">["0x53A051","0xF8BE34","0xDC4E41"]</option>
+        <option name="rangeValues">[5,20]</option>
+        <option name="numberPrecision">0</option>
+      </single>
+    </panel>
+
+    <panel>
+      <title>Indexers</title>
+      <single>
+        <search>
+          <query>
+            index=_internal sourcetype=splunkd log_level IN (ERROR, CRITICAL)
+            [| rest /services/search/distributed/peers splunk_server=* | fields host | dedup host]
+            | stats count AS issues
+            | eval status = case(issues &lt; 5, "GREEN", issues &lt; 20, "AMBER", true(), "RED")
+            | fields status, issues
+          </query>
+          <earliest>-1h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="field">issues</option>
+        <option name="underLabel">Indexer Errors (1h)</option>
+        <option name="colorMode">block</option>
+        <option name="rangeColors">["0x53A051","0xF8BE34","0xDC4E41"]</option>
+        <option name="rangeValues">[5,20]</option>
+        <option name="numberPrecision">0</option>
+      </single>
+    </panel>
+
+    <panel>
+      <title>Heavy Forwarders</title>
+      <single>
+        <search>
+          <query>
+            index=_internal sourcetype=splunkd group=tcpin_connections
+            | stats max(_time) AS last_seen BY hostname
+            | eval offline = if((now() - last_seen) > 3600, 1, 0)
+            | stats sum(offline) AS issues
+            | eval status = case(issues = 0, "GREEN", issues &lt; 5, "AMBER", true(), "RED")
+            | fields status, issues
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="field">issues</option>
+        <option name="underLabel">HFs Offline (&gt;1h)</option>
+        <option name="colorMode">block</option>
+        <option name="rangeColors">["0x53A051","0xF8BE34","0xDC4E41"]</option>
+        <option name="rangeValues">[1,5]</option>
+        <option name="numberPrecision">0</option>
+      </single>
+    </panel>
+
+    <panel>
+      <title>DBConnect</title>
+      <single>
+        <search>
+          <query>
+            index=_internal sourcetype=splunkd log_level IN (ERROR, CRITICAL)
+            (component=DBX* OR component=JDBCDriver OR message="*dbconnect*" OR message="*jdbc*")
+            | stats count AS issues
+            | eval status = case(issues = 0, "GREEN", issues &lt; 10, "AMBER", true(), "RED")
+            | fields status, issues
+          </query>
+          <earliest>-1h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="field">issues</option>
+        <option name="underLabel">DBX Errors (1h)</option>
+        <option name="colorMode">block</option>
+        <option name="rangeColors">["0x53A051","0xF8BE34","0xDC4E41"]</option>
+        <option name="rangeValues">[1,10]</option>
+        <option name="numberPrecision">0</option>
+      </single>
+    </panel>
+
+    <panel>
+      <title>Intermediate Forwarders</title>
+      <single>
+        <search>
+          <query>
+            index=_internal sourcetype=splunkd group=tcpin_connections
+            | stats max(_time) AS last_seen BY hostname
+            | eval offline = if((now() - last_seen) > 1800, 1, 0)
+            | stats sum(offline) AS issues
+            | eval status = case(issues = 0, "GREEN", issues &lt; 3, "AMBER", true(), "RED")
+            | fields status, issues
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="field">issues</option>
+        <option name="underLabel">iFWs Offline (&gt;30m)</option>
+        <option name="colorMode">block</option>
+        <option name="rangeColors">["0x53A051","0xF8BE34","0xDC4E41"]</option>
+        <option name="rangeValues">[1,3]</option>
+        <option name="numberPrecision">0</option>
+      </single>
+    </panel>
+
+  </row>
+
+  <!-- ============================================================
+       ROW 2: SEARCH HEAD HEALTH
+  ============================================================ -->
+  <row>
+    <panel>
+      <title>Search Head — Skipped Searches (24h)</title>
+      <chart>
+        <search>
+          <query>
+            index=_audit action=search info=skipped
+            | timechart span=1h count AS skipped_searches
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.seriesColors">["0xDC4E41"]</option>
+        <option name="charting.axisTitleX.visibility">collapsed</option>
+      </chart>
+    </panel>
+
+    <panel>
+      <title>Search Head — Concurrent Searches vs Limit</title>
+      <chart>
+        <search>
+          <query>
+            index=_internal sourcetype=splunkd component=SearchConcurrencyMgr
+            | timechart span=5m max(current_running_searches) AS running avg(search_concurrency_limit) AS limit
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">area</option>
+        <option name="charting.seriesColors">["0x5379AF","0xDC4E41"]</option>
+        <option name="charting.chart.nullValueMode">connect</option>
+      </chart>
+    </panel>
+
+    <panel>
+      <title>Search Head — splunkd Errors (24h)</title>
+      <chart>
+        <search>
+          <query>
+            index=_internal sourcetype=splunkd log_level IN (ERROR, CRITICAL)
+            | timechart span=1h count BY log_level
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.seriesColors">["0xDC4E41","0xB83C08"]</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Search Head — Scheduler Lag (seconds)</title>
+      <chart>
+        <search>
+          <query>
+            index=_internal sourcetype=scheduler
+            | timechart span=1h avg(lag) AS avg_lag_secs max(lag) AS max_lag_secs
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.seriesColors">["0xF8BE34","0xDC4E41"]</option>
+      </chart>
+    </panel>
+
+    <panel>
+      <title>Search Head — Long-Running Searches (&gt;5 min)</title>
+      <table>
+        <search>
+          <query>
+            index=_internal sourcetype=splunkd component=SearchInspector
+            | eval runtime_mins = round(run_time / 60, 1)
+            | where runtime_mins &gt; 5
+            | stats count BY search_id, user, app, runtime_mins
+            | sort -runtime_mins
+            | head 20
+            | rename search_id AS "Search ID", user AS User, app AS App, runtime_mins AS "Runtime (min)"
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="count">10</option>
+        <option name="dataOverlayMode">highlow</option>
+      </table>
+    </panel>
+
+    <panel>
+      <title>Search Head — Top Error Messages</title>
+      <table>
+        <search>
+          <query>
+            index=_internal sourcetype=splunkd log_level IN (ERROR, CRITICAL)
+            | stats count BY message
+            | sort -count
+            | head 10
+            | rename message AS "Error Message", count AS Count
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="count">10</option>
+      </table>
+    </panel>
+  </row>
+
+  <!-- ============================================================
+       ROW 3: INDEXER HEALTH
+  ============================================================ -->
+  <row>
+    <panel>
+      <title>Indexers — Queue Fill % (All Queues)</title>
+      <chart>
+        <search>
+          <query>
+            index=_internal sourcetype=splunkd component=Metrics group=queue
+            | eval fill_pct = round((current_size / max_size) * 100, 1)
+            | timechart span=5m max(fill_pct) BY name
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.legend.placement">bottom</option>
+      </chart>
+    </panel>
+
+    <panel>
+      <title>Indexers — Indexing Throughput (KB/s)</title>
+      <chart>
+        <search>
+          <query>
+            index=_internal sourcetype=splunkd component=Metrics group=thruput
+            | timechart span=5m avg(instantaneous_kbps) AS avg_kbps sum(total_k_processed) AS total_kb
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">area</option>
+        <option name="charting.seriesColors">["0x53A051"]</option>
+      </chart>
+    </panel>
+
+    <panel>
+      <title>Indexers — splunkd Errors</title>
+      <chart>
+        <search>
+          <query>
+            index=_internal sourcetype=splunkd log_level IN (ERROR, CRITICAL)
+            | anomalydetection action=annotate
+            | timechart span=1h count BY log_level
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.seriesColors">["0xDC4E41","0xB83C08"]</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Indexers — Parsing Queue Pressure</title>
+      <chart>
+        <search>
+          <query>
+            index=_internal sourcetype=splunkd component=Metrics group=queue name=parsingqueue
+            | eval fill_pct = round((current_size / max_size) * 100, 1)
+            | timechart span=5m avg(fill_pct) AS parsing_queue_pct
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">area</option>
+        <option name="charting.seriesColors">["0xF8BE34"]</option>
+        <option name="charting.chart.nullValueMode">connect</option>
+      </chart>
+    </panel>
+
+    <panel>
+      <title>Indexers — Top Error Messages</title>
+      <table>
+        <search>
+          <query>
+            index=_internal sourcetype=splunkd log_level IN (ERROR, CRITICAL)
+            [| rest /services/search/distributed/peers splunk_server=* | fields host | dedup host]
+            | stats count BY host, message
+            | sort -count
+            | head 15
+            | rename host AS Host, message AS "Error Message", count AS Count
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="count">10</option>
+      </table>
+    </panel>
+  </row>
+
+  <!-- ============================================================
+       ROW 4: HEAVY FORWARDER / iFW HEALTH
+  ============================================================ -->
+  <row>
+    <panel>
+      <title>Forwarders — Currently Offline (&gt;1h silence)</title>
+      <table>
+        <search>
+          <query>
+            index=_internal sourcetype=splunkd group=tcpin_connections
+            | stats max(_time) AS last_seen BY hostname
+            | eval hours_silent = round((now() - last_seen) / 3600, 1)
+            | where hours_silent &gt; 1
+            | eval last_seen = strftime(last_seen, "%Y-%m-%d %H:%M")
+            | sort -hours_silent
+            | rename hostname AS Host, hours_silent AS "Hours Silent", last_seen AS "Last Seen"
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="count">15</option>
+        <option name="dataOverlayMode">highlow</option>
+      </table>
+    </panel>
+
+    <panel>
+      <title>Forwarders — Output Queue Blockage</title>
+      <chart>
+        <search>
+          <query>
+            index=_internal sourcetype=splunkd component=Metrics group=queue name=tcpout_genericqueue
+            | eval fill_pct = round((current_size / max_size) * 100, 1)
+            | timechart span=5m avg(fill_pct) AS tcpout_queue_pct BY host
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.legend.placement">bottom</option>
+      </chart>
+    </panel>
+
+    <panel>
+      <title>Forwarders — Connection Failures</title>
+      <chart>
+        <search>
+          <query>
+            index=_internal sourcetype=splunkd
+            (component=TcpOutputProc OR component=TcpOutputFd)
+            log_level IN (ERROR, WARN)
+            | timechart span=1h count BY host
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.stackMode">stacked</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Forwarders — ACK Failures</title>
+      <chart>
+        <search>
+          <query>
+            index=_internal sourcetype=splunkd component=IndexerAckTracker log_level IN (WARN, ERROR)
+            | timechart span=1h count AS ack_failures BY host
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.seriesColors">["0xDC4E41"]</option>
+      </chart>
+    </panel>
+
+    <panel>
+      <title>Forwarders — Top Error Messages</title>
+      <table>
+        <search>
+          <query>
+            index=_internal sourcetype=splunkd log_level IN (ERROR, WARN)
+            NOT [| rest /services/search/distributed/peers | fields title | rename title AS host]
+            | stats count BY host, message
+            | sort -count
+            | head 15
+            | rename host AS Host, message AS "Error Message", count AS Count
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="count">10</option>
+      </table>
+    </panel>
+
+    <panel>
+      <title>Forwarders — Anomalous Error Spikes</title>
+      <table>
+        <search>
+          <query>
+            index=_internal sourcetype=splunkd log_level IN (ERROR, WARN)
+            | stats count BY host, message
+            | anomalydetection action=annotate
+            | where isAnomaly = 1
+            | sort -count
+            | head 10
+            | rename host AS Host, message AS "Anomalous Message", count AS Count
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="count">10</option>
+      </table>
+    </panel>
+  </row>
+
+</dashboard>

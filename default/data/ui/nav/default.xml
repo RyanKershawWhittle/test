@@ -1,0 +1,4 @@
+<nav search_view="search" color="#F58220">
+  <view name="platform_health" default="true" />
+  <view name="overview" />
+</nav>
