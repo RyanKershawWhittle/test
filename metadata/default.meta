@@ -1,3 +1,27 @@
 []
+access = read : [ * ], write : [ admin, power ]
+export = system
+
+[savedsearches]
+access = read : [ * ], write : [ admin, power ]
+export = system
+
+[macros]
+access = read : [ * ], write : [ admin, power ]
+export = system
+
+[transforms]
+access = read : [ * ], write : [ admin, power ]
+export = system
+
+[props]
+access = read : [ * ], write : [ admin, power ]
+export = system
+
+[views]
+access = read : [ * ], write : [ admin, power ]
+export = system
+
+[nav]
 access = read : [ * ], write : [ admin ]
 export = system
